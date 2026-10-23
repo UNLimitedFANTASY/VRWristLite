@@ -1,0 +1,12 @@
+/WristLite.exe
+/VRWristLite.exe
+/TriggerTests.exe
+/settings-test.ini
+/preview.png
+/preview-first-version.png
+/preview-vrcx.png
+/preview-settings.png
+/dist/
+*.pdb
+*.user
+.vs/
