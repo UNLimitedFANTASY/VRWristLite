@@ -6,6 +6,8 @@
 
 ![VRCX 素材面板](docs/preview-vrcx.png)
 
+[查看 25 个设备的宽屏预览](docs/preview-25-classic.png) · [查看 25 个设备的方形预览](docs/preview-25-vrcx.png)
+
 ## 已实现
 
 - 可选“按住显示、松开隐藏”或“按一次限时显示”。限时模式的时长可在设置窗口调整为 1–300 秒，默认 5 秒；持续按住不会延长显示时间，松开后再按一次会重新计时。
@@ -13,6 +15,7 @@
 - 可选“第一版（宽屏）”或“VRCX 素材（方形）”；首次使用默认第一版。
 - 在同一行显示年月日和时间，日期位于时间左侧；显示 VR 设备的图标、电量、连接与追踪状态；CPU、内存和 GPU 占用率，CPU 与 GPU 频率、温度，VR 帧率，以及 VRChat 和电脑运行时长。各项可在设置中开关。
 - 设备已连接但定位姿态无效时显示橙色“丢追”；断开时显示“离线”。如果 SteamVR 把设备从列表中移除，程序会在本次运行期间保留其离线图标。
+- 两种界面最多显示 25 个 VR 设备图标。设备较多时自动缩小图标和状态字号，以容纳头显、手柄、追踪器和基站。
 - 参考 VRCX-0 的叠加层刷新顺序：将新画面上传到隐藏的叠加层，等待 SteamVR 的 `ImageLoaded` 事件后才显示新画面并隐藏旧画面；若收到 `ImageFailed` 则保留旧画面。这针对先前每秒刷新的闪动问题。程序会阻止同时运行多个 VRWristLite 或旧版 WristLite 实例。
 - 保留上一版的简洁设置窗口与原生下拉框；独立设计的程序图标已嵌入程序。
 - 可选 VRCX 深色背景、状态指示点以及各信息项的显示开关。
@@ -35,7 +38,7 @@
 
 ## 预览与构建
 
-运行程序并添加 `--preview-classic`、`--preview-vrcx` 或 `--preview-settings` 参数，可分别生成两种面板或设置窗口的静态预览，无需 SteamVR。
+运行程序并添加 `--preview-classic`、`--preview-vrcx` 或 `--preview-settings` 参数，可分别生成两种面板或设置窗口的静态预览。添加 `--preview-25-classic` 或 `--preview-25-vrcx` 可生成 25 个设备的预览，无需 SteamVR。
 
 在项目根目录运行 `./build.ps1` 构建 64 位 `VRWristLite.exe`，运行 `./test.ps1` 执行自动检查。两者使用 Windows 自带的 .NET Framework C# 编译器，不需要联网。`./package-release.ps1` 会构建、测试并生成包含程序和许可文本的发布压缩包。若编译器不可用，请安装 .NET Framework 开发工具。
 

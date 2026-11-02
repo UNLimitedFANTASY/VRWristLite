@@ -31,11 +31,15 @@ namespace WristLite
 
             if (args.Any(a => a.Equals("--preview", StringComparison.OrdinalIgnoreCase)
                 || a.Equals("--preview-classic", StringComparison.OrdinalIgnoreCase)
-                || a.Equals("--preview-vrcx", StringComparison.OrdinalIgnoreCase)))
+                || a.Equals("--preview-vrcx", StringComparison.OrdinalIgnoreCase)
+                || a.Equals("--preview-25-classic", StringComparison.OrdinalIgnoreCase)
+                || a.Equals("--preview-25-vrcx", StringComparison.OrdinalIgnoreCase)))
             {
-                if (args.Any(a => a.Equals("--preview-classic", StringComparison.OrdinalIgnoreCase)))
+                if (args.Any(a => a.Equals("--preview-classic", StringComparison.OrdinalIgnoreCase)
+                    || a.Equals("--preview-25-classic", StringComparison.OrdinalIgnoreCase)))
                     settings.Appearance = "classic";
-                if (args.Any(a => a.Equals("--preview-vrcx", StringComparison.OrdinalIgnoreCase)))
+                if (args.Any(a => a.Equals("--preview-vrcx", StringComparison.OrdinalIgnoreCase)
+                    || a.Equals("--preview-25-vrcx", StringComparison.OrdinalIgnoreCase)))
                     settings.Appearance = "vrcx";
                 var sample = new PanelData
                 {
@@ -58,8 +62,28 @@ namespace WristLite
                         new DeviceInfo { Kind = "tracker", Label = "追踪器", Battery = 91, Connected = true, Tracked = true }
                     }
                 };
+                bool preview25 = args.Any(a => a.Equals("--preview-25-classic",
+                    StringComparison.OrdinalIgnoreCase) || a.Equals("--preview-25-vrcx",
+                    StringComparison.OrdinalIgnoreCase));
+                if (preview25)
+                {
+                    sample.Devices.Clear();
+                    sample.Devices.Add(new DeviceInfo { Kind = "headset", Battery = 84,
+                        Connected = true, Tracked = true });
+                    for (int i = 0; i < 6; i++)
+                        sample.Devices.Add(new DeviceInfo { Kind = "controller", Battery = 70 + i,
+                            Connected = true, Tracked = true });
+                    for (int i = 0; i < 4; i++)
+                        sample.Devices.Add(new DeviceInfo { Kind = "base", Battery = -1,
+                            Connected = true, Tracked = true });
+                    for (int i = 0; i < 14; i++)
+                        sample.Devices.Add(new DeviceInfo { Kind = "tracker", Battery = 60 + i,
+                            Connected = true, Tracked = i != 13 });
+                }
                 string file = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
-                    settings.Appearance == "classic" ? "preview-first-version.png" : "preview-vrcx.png");
+                    preview25 ? settings.Appearance == "classic" ? "preview-25-classic.png"
+                        : "preview-25-vrcx.png" : settings.Appearance == "classic"
+                        ? "preview-first-version.png" : "preview-vrcx.png");
                 using (Bitmap bitmap = Renderer.Draw(settings, sample))
                     bitmap.Save(file, ImageFormat.Png);
                 return;
@@ -309,6 +333,7 @@ namespace WristLite
 
     internal static class Renderer
     {
+        internal const int MaxDevices = 25;
         // VRCX's wrist surface is 512 by 510 pixels. Colors and spacing below
         // follow src/vr/vr.css; device images are the original VRCX PNG assets.
         private const int Width = 512;
@@ -330,6 +355,7 @@ namespace WristLite
             using (Font value = new Font("Microsoft YaHei UI", 15, FontStyle.Bold))
             using (Font small = new Font("Microsoft YaHei UI", 12))
             using (Font deviceFont = new Font("Microsoft YaHei UI", 12, FontStyle.Bold))
+            using (Font compactDeviceFont = new Font("Microsoft YaHei UI", 9, FontStyle.Bold))
             using (Brush white = new SolidBrush(Color.FromArgb(228, 228, 231)))
             using (Brush muted = new SolidBrush(Color.FromArgb(161, 161, 170)))
             using (Brush warning = new SolidBrush(Color.FromArgb(255, 175, 67)))
@@ -375,23 +401,29 @@ namespace WristLite
                     ShadowText(g, "VR 设备", small, muted, 12, devicesTop);
                     if (data.Devices.Count == 0)
                         ShadowText(g, "正在连接设备…", small, muted, 12, devicesTop + 42);
-                    int count = Math.Min(data.Devices.Count, 12);
-                    int columns = count <= 4 ? 4 : 6;
+                    int count = Math.Min(data.Devices.Count, MaxDevices);
+                    bool compact = count > 12;
+                    int columns = compact ? 8 : count <= 4 ? 4 : 6;
                     int cellWidth = 492 / columns;
                     for (int i = 0; i < count; i++)
                     {
                         int col = i % columns;
                         int row = i / columns;
                         int cellX = 10 + col * cellWidth;
-                        int cellY = devicesTop + (count <= columns ? 50 : 25) + row * 72;
+                        int cellY = compact ? devicesTop + 26 + row * 43
+                            : devicesTop + (count <= columns ? 50 : 25) + row * 72;
                         DeviceInfo device = data.Devices[i];
                         Bitmap icon = GetIcon(IconName(device));
+                        int iconWidth = compact ? 33 : 50;
+                        int iconHeight = compact ? 29 : 43;
                         if (icon != null) DrawIconFit(g, icon,
-                            new Rectangle(cellX + (cellWidth - 50) / 2, cellY, 50, 43));
+                            new Rectangle(cellX + (cellWidth - iconWidth) / 2, cellY,
+                                iconWidth, iconHeight));
                         using (StringFormat center = new StringFormat { Alignment = StringAlignment.Center })
-                            ShadowText(g, DeviceStatus(device), deviceFont,
+                            ShadowText(g, DeviceStatus(device), compact ? compactDeviceFont : deviceFont,
                                 device.Connected && !device.Tracked ? warning : muted,
-                                new RectangleF(cellX, cellY + 45, cellWidth, 23), center);
+                                new RectangleF(cellX, cellY + (compact ? 29 : 45),
+                                    cellWidth, compact ? 15 : 23), center);
                     }
                 }
             }
@@ -442,21 +474,26 @@ namespace WristLite
                     if (data.Devices.Count == 0)
                         g.DrawString("正在连接设备…", small, muted, 45, 170);
                     using (Font deviceFont = new Font("Microsoft YaHei UI", 15, FontStyle.Bold))
+                    using (Font compactDeviceFont = new Font("Microsoft YaHei UI", 11, FontStyle.Bold))
                     using (StringFormat center = new StringFormat { Alignment = StringAlignment.Center })
                     {
-                        int count = Math.Min(data.Devices.Count, 20);
+                        int count = Math.Min(data.Devices.Count, MaxDevices);
+                        bool compact = count > 20;
                         for (int i = 0; i < count; i++)
                         {
                             int col = i % 10;
                             int row = i / 10;
                             int x = 37 + col * 93;
-                            int y = 154 + row * 78;
+                            int y = 154 + row * (compact ? 51 : 78);
                             DeviceInfo device = data.Devices[i];
                             Bitmap icon = GetIcon(IconName(device));
-                            if (icon != null) DrawIconFit(g, icon, new Rectangle(x + 21, y, 50, 46));
-                            g.DrawString(DeviceStatus(device), deviceFont,
+                            int iconWidth = compact ? 36 : 50;
+                            int iconHeight = compact ? 31 : 46;
+                            if (icon != null) DrawIconFit(g, icon,
+                                new Rectangle(x + (92 - iconWidth) / 2, y, iconWidth, iconHeight));
+                            g.DrawString(DeviceStatus(device), compact ? compactDeviceFont : deviceFont,
                                 device.Connected && !device.Tracked ? warning : white,
-                                new RectangleF(x, y + 46, 92, 26), center);
+                                new RectangleF(x, y + iconHeight, 92, compact ? 19 : 26), center);
                         }
                     }
                 }
