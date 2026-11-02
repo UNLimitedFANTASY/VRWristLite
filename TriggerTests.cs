@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -14,6 +15,20 @@ namespace WristLite
         private static void Expect(bool condition, string label)
         {
             if (!condition) throw new Exception(label);
+        }
+
+        private static byte[] RenderDevices(string appearance, int count)
+        {
+            var panel = new PanelData { Devices = new List<DeviceInfo>() };
+            for (int i = 0; i < count; i++)
+                panel.Devices.Add(new DeviceInfo { Kind = "tracker", Connected = true,
+                    Tracked = true, Battery = i });
+            using (Bitmap bitmap = Renderer.Draw(new Settings { Appearance = appearance }, panel))
+            using (var stream = new MemoryStream())
+            {
+                bitmap.Save(stream, ImageFormat.Png);
+                return stream.ToArray();
+            }
         }
 
         [STAThread]
@@ -114,6 +129,14 @@ namespace WristLite
                 Expect(rgba[4] == 70 && rgba[5] == 90 && rgba[6] == 110 && rgba[7] == 128,
                     "second RGBA pixel and alpha");
             }
+            Expect(Renderer.MaxDevices == 25, "device capacity");
+            foreach (string appearance in new[] { "classic", "vrcx" })
+            {
+                Expect(!RenderDevices(appearance, 24).SequenceEqual(RenderDevices(appearance, 25)),
+                    appearance + " displays device 25");
+                Expect(RenderDevices(appearance, 25).SequenceEqual(RenderDevices(appearance, 26)),
+                    appearance + " limits rendering to 25 devices");
+            }
             using (var probe = new HardwareProbe())
             {
                 var sample = new PanelData();
@@ -124,7 +147,7 @@ namespace WristLite
                     "%, CPU " + (sample.CpuClock.HasValue ? sample.CpuClock.Value.ToString("0") : "—") +
                     " MHz, GPU " + (sample.Gpu.HasValue ? sample.Gpu.Value.ToString("0") : "—") + "%");
             }
-            Console.WriteLine("Trigger, settings, pixel, and hardware checks passed.");
+            Console.WriteLine("Trigger, settings, pixel, 25-device rendering, and hardware checks passed.");
         }
     }
 }
