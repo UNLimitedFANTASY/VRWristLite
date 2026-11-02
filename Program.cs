@@ -78,7 +78,7 @@ namespace WristLite
                             Connected = true, Tracked = true });
                     for (int i = 0; i < 14; i++)
                         sample.Devices.Add(new DeviceInfo { Kind = "tracker", Battery = 60 + i,
-                            Connected = true, Tracked = i != 13 });
+                            Connected = i != 12, Tracked = i != 12 && i != 13 });
                 }
                 string file = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
                     preview25 ? settings.Appearance == "classic" ? "preview-25-classic.png"
@@ -418,10 +418,10 @@ namespace WristLite
                         int iconHeight = compact ? 29 : 43;
                         if (icon != null) DrawIconFit(g, icon,
                             new Rectangle(cellX + (cellWidth - iconWidth) / 2, cellY,
-                                iconWidth, iconHeight));
+                                iconWidth, iconHeight), DeviceIconTint(device));
                         using (StringFormat center = new StringFormat { Alignment = StringAlignment.Center })
-                            ShadowText(g, DeviceStatus(device), compact ? compactDeviceFont : deviceFont,
-                                device.Connected && !device.Tracked ? warning : muted,
+                            ShadowText(g, DeviceBatteryText(device), compact ? compactDeviceFont : deviceFont,
+                                muted,
                                 new RectangleF(cellX, cellY + (compact ? 29 : 45),
                                     cellWidth, compact ? 15 : 23), center);
                     }
@@ -490,9 +490,10 @@ namespace WristLite
                             int iconWidth = compact ? 36 : 50;
                             int iconHeight = compact ? 31 : 46;
                             if (icon != null) DrawIconFit(g, icon,
-                                new Rectangle(x + (92 - iconWidth) / 2, y, iconWidth, iconHeight));
-                            g.DrawString(DeviceStatus(device), compact ? compactDeviceFont : deviceFont,
-                                device.Connected && !device.Tracked ? warning : white,
+                                new Rectangle(x + (92 - iconWidth) / 2, y, iconWidth, iconHeight),
+                                DeviceIconTint(device));
+                            g.DrawString(DeviceBatteryText(device), compact ? compactDeviceFont : deviceFont,
+                                white,
                                 new RectangleF(x, y + iconHeight, 92, compact ? 19 : 26), center);
                         }
                     }
@@ -509,20 +510,39 @@ namespace WristLite
             return bitmap;
         }
 
-        private static string DeviceStatus(DeviceInfo device)
+        internal static string DeviceBatteryText(DeviceInfo device)
         {
-            if (!device.Connected) return "离线";
-            if (!device.Tracked) return "丢追";
-            return device.Battery < 0 ? "在线" : device.Battery + "%";
+            return device.Battery < 0 ? "—" : device.Battery + "%";
         }
 
-        private static void DrawIconFit(Graphics g, Bitmap icon, Rectangle bounds)
+        internal static Color? DeviceIconTint(DeviceInfo device)
+        {
+            if (!device.Connected) return Color.FromArgb(239, 68, 68);
+            if (!device.Tracked) return Color.FromArgb(255, 193, 7);
+            return null;
+        }
+
+        private static void DrawIconFit(Graphics g, Bitmap icon, Rectangle bounds, Color? tint = null)
         {
             float scale = Math.Min((float)bounds.Width / icon.Width, (float)bounds.Height / icon.Height);
             int width = Math.Max(1, (int)Math.Round(icon.Width * scale));
             int height = Math.Max(1, (int)Math.Round(icon.Height * scale));
-            g.DrawImage(icon, bounds.X + (bounds.Width - width) / 2,
+            var destination = new Rectangle(bounds.X + (bounds.Width - width) / 2,
                 bounds.Y + (bounds.Height - height) / 2, width, height);
+            if (!tint.HasValue) { g.DrawImage(icon, destination); return; }
+            Color color = tint.Value;
+            using (var attributes = new ImageAttributes())
+            {
+                attributes.SetColorMatrix(new ColorMatrix(new[] {
+                    new float[] { 0, 0, 0, 0, 0 },
+                    new float[] { 0, 0, 0, 0, 0 },
+                    new float[] { 0, 0, 0, 0, 0 },
+                    new float[] { 0, 0, 0, 1, 0 },
+                    new float[] { color.R / 255f, color.G / 255f, color.B / 255f, 0, 1 }
+                }));
+                g.DrawImage(icon, destination, 0, 0, icon.Width, icon.Height,
+                    GraphicsUnit.Pixel, attributes);
+            }
         }
 
         private static List<KeyValuePair<string, string>> Metrics(Settings settings, PanelData data)
@@ -603,7 +623,6 @@ namespace WristLite
             if (!device.Connected) return stem + "_off.png";
             if (device.Kind == "base") return stem + "_ready.png";
             if (device.Charging) return stem + "_ready_charging.png";
-            if (device.Battery >= 0 && device.Battery < 20) return stem + "_ready_low.png";
             return stem + "_ready.png";
         }
 
@@ -1150,6 +1169,8 @@ namespace WristLite
                      (poses[i].bPoseIsValid && poses[i].eTrackingResult == ETrackingResult.Running_OK));
                 if (!device.Connected)
                 {
+                    DeviceInfo previous;
+                    if (knownDevices.TryGetValue(i, out previous)) device.Battery = previous.Battery;
                     current.Devices.Add(device);
                     knownDevices[i] = device;
                     continue;
