@@ -339,6 +339,7 @@ namespace WristLite
         private const int Width = 512;
         private const int Height = 510;
         private static readonly Dictionary<string, Bitmap> Icons = new Dictionary<string, Bitmap>();
+        private static readonly Dictionary<string, Bitmap> StatusIcons = new Dictionary<string, Bitmap>();
 
         public static Bitmap Draw(Settings settings, PanelData data)
         {
@@ -376,10 +377,16 @@ namespace WristLite
                 }
                 int titleX = settings.MiniIcon ? 31 : 12;
                 ShadowText(g, "手腕状态", title, white, titleX, 13);
-                using (StringFormat far = new StringFormat { Alignment = StringAlignment.Far })
+                using (StringFormat far = new StringFormat
                 {
-                    ShadowText(g, data.Date, small, muted, new RectangleF(222, 20, 151, 29), far);
-                    ShadowText(g, data.Clock, clock, white, new RectangleF(380, 7, 118, 42), far);
+                    Alignment = StringAlignment.Far,
+                    LineAlignment = StringAlignment.Center
+                })
+                {
+                    var headerLine = new RectangleF(235, 10, 151, 47);
+                    ShadowText(g, data.Date, small, muted, headerLine, far);
+                    ShadowText(g, data.Clock, clock, white,
+                        new RectangleF(380, headerLine.Y, 118, headerLine.Height), far);
                 }
                 Divider(g, 62);
 
@@ -413,12 +420,12 @@ namespace WristLite
                         int cellY = compact ? devicesTop + 26 + row * 43
                             : devicesTop + (count <= columns ? 50 : 25) + row * 72;
                         DeviceInfo device = data.Devices[i];
-                        Bitmap icon = GetIcon(IconName(device));
+                        Bitmap icon = GetDeviceIcon(device);
                         int iconWidth = compact ? 33 : 50;
                         int iconHeight = compact ? 29 : 43;
                         if (icon != null) DrawIconFit(g, icon,
                             new Rectangle(cellX + (cellWidth - iconWidth) / 2, cellY,
-                                iconWidth, iconHeight), DeviceIconTint(device));
+                                iconWidth, iconHeight));
                         using (StringFormat center = new StringFormat { Alignment = StringAlignment.Center })
                             ShadowText(g, DeviceBatteryText(device), compact ? compactDeviceFont : deviceFont,
                                 muted,
@@ -486,12 +493,11 @@ namespace WristLite
                             int x = 37 + col * 93;
                             int y = 154 + row * (compact ? 51 : 78);
                             DeviceInfo device = data.Devices[i];
-                            Bitmap icon = GetIcon(IconName(device));
+                            Bitmap icon = GetDeviceIcon(device);
                             int iconWidth = compact ? 36 : 50;
                             int iconHeight = compact ? 31 : 46;
                             if (icon != null) DrawIconFit(g, icon,
-                                new Rectangle(x + (92 - iconWidth) / 2, y, iconWidth, iconHeight),
-                                DeviceIconTint(device));
+                                new Rectangle(x + (92 - iconWidth) / 2, y, iconWidth, iconHeight));
                             g.DrawString(DeviceBatteryText(device), compact ? compactDeviceFont : deviceFont,
                                 white,
                                 new RectangleF(x, y + iconHeight, 92, compact ? 19 : 26), center);
@@ -515,34 +521,85 @@ namespace WristLite
             return device.Battery < 0 ? "—" : device.Battery + "%";
         }
 
-        internal static Color? DeviceIconTint(DeviceInfo device)
+        internal static int DeviceIconState(DeviceInfo device)
         {
-            if (!device.Connected) return Color.FromArgb(239, 68, 68);
-            if (!device.Tracked) return Color.FromArgb(255, 193, 7);
-            return null;
+            return !device.Connected ? 2 : !device.Tracked ? 1 : 0;
         }
 
-        private static void DrawIconFit(Graphics g, Bitmap icon, Rectangle bounds, Color? tint = null)
+        private static void DrawIconFit(Graphics g, Bitmap icon, Rectangle bounds)
         {
             float scale = Math.Min((float)bounds.Width / icon.Width, (float)bounds.Height / icon.Height);
             int width = Math.Max(1, (int)Math.Round(icon.Width * scale));
             int height = Math.Max(1, (int)Math.Round(icon.Height * scale));
             var destination = new Rectangle(bounds.X + (bounds.Width - width) / 2,
                 bounds.Y + (bounds.Height - height) / 2, width, height);
-            if (!tint.HasValue) { g.DrawImage(icon, destination); return; }
-            Color color = tint.Value;
-            using (var attributes = new ImageAttributes())
+            g.DrawImage(icon, destination);
+        }
+
+        private static Bitmap GetDeviceIcon(DeviceInfo device)
+        {
+            int state = DeviceIconState(device);
+            string file = IconName(device);
+            // VRCX filters the coloured ready artwork; a grey off icon cannot become red.
+            if (state == 2 && file.EndsWith("_off.png", StringComparison.Ordinal))
+                file = file.Substring(0, file.Length - "_off.png".Length) + "_ready.png";
+            Bitmap original = GetIcon(file);
+            if (original == null || state == 0) return original;
+            string key = file + "|" + state;
+            Bitmap tinted;
+            if (!StatusIcons.TryGetValue(key, out tinted))
+                StatusIcons[key] = tinted = ApplyVrcxStatusFilter(original, state);
+            return tinted;
+        }
+
+        // VRCX src/vr/vr.css: warning = saturate(250%) brightness(151%)
+        // hue-rotate(221deg); error = saturate(160%) brightness(88%)
+        // hue-rotate(161deg), with 90% icon opacity. Keep the artwork's gradients.
+        internal static Bitmap ApplyVrcxStatusFilter(Bitmap source, int state)
+        {
+            double saturation = state == 1 ? 2.5 : 1.6;
+            double brightness = state == 1 ? 1.51 : 0.88;
+            double radians = (state == 1 ? 221 : 161) * Math.PI / 180.0;
+            double cosine = Math.Cos(radians);
+            double sine = Math.Sin(radians);
+            var result = new Bitmap(source.Width, source.Height, PixelFormat.Format32bppArgb);
+            for (int y = 0; y < source.Height; y++)
             {
-                attributes.SetColorMatrix(new ColorMatrix(new[] {
-                    new float[] { 0, 0, 0, 0, 0 },
-                    new float[] { 0, 0, 0, 0, 0 },
-                    new float[] { 0, 0, 0, 0, 0 },
-                    new float[] { 0, 0, 0, 1, 0 },
-                    new float[] { color.R / 255f, color.G / 255f, color.B / 255f, 0, 1 }
-                }));
-                g.DrawImage(icon, destination, 0, 0, icon.Width, icon.Height,
-                    GraphicsUnit.Pixel, attributes);
+                for (int x = 0; x < source.Width; x++)
+                {
+                    Color pixel = source.GetPixel(x, y);
+                    if (pixel.A == 0) continue;
+                    double r = ClampChannel(ClampChannel(pixel.R * (0.213 + 0.787 * saturation)
+                        + pixel.G * (0.715 - 0.715 * saturation)
+                        + pixel.B * (0.072 - 0.072 * saturation)) * brightness);
+                    double g = ClampChannel(ClampChannel(pixel.R * (0.213 - 0.213 * saturation)
+                        + pixel.G * (0.715 + 0.285 * saturation)
+                        + pixel.B * (0.072 - 0.072 * saturation)) * brightness);
+                    double b = ClampChannel(ClampChannel(pixel.R * (0.213 - 0.213 * saturation)
+                        + pixel.G * (0.715 - 0.715 * saturation)
+                        + pixel.B * (0.072 + 0.928 * saturation)) * brightness);
+                    int red = (int)Math.Round(ClampChannel(
+                        r * (0.213 + 0.787 * cosine - 0.213 * sine)
+                        + g * (0.715 - 0.715 * cosine - 0.715 * sine)
+                        + b * (0.072 - 0.072 * cosine + 0.928 * sine)));
+                    int green = (int)Math.Round(ClampChannel(
+                        r * (0.213 - 0.213 * cosine + 0.143 * sine)
+                        + g * (0.715 + 0.285 * cosine + 0.140 * sine)
+                        + b * (0.072 - 0.072 * cosine - 0.283 * sine)));
+                    int blue = (int)Math.Round(ClampChannel(
+                        r * (0.213 - 0.213 * cosine - 0.787 * sine)
+                        + g * (0.715 - 0.715 * cosine + 0.715 * sine)
+                        + b * (0.072 + 0.928 * cosine + 0.072 * sine)));
+                    result.SetPixel(x, y, Color.FromArgb(
+                        (int)Math.Round(pixel.A * 0.9), red, green, blue));
+                }
             }
+            return result;
+        }
+
+        private static double ClampChannel(double value)
+        {
+            return Math.Max(0, Math.Min(255, value));
         }
 
         private static List<KeyValuePair<string, string>> Metrics(Settings settings, PanelData data)

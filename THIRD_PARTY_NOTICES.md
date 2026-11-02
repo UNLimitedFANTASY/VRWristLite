@@ -7,4 +7,4 @@ WristLite 的自有代码采用 [MIT 许可](LICENSE)。以下文件保留原项
 | `assets/*.png` 中的 VR 设备图标 | [VRCX](https://github.com/vrcx-team/VRCX/tree/master/src/public/images/vr) | [MIT](LICENSE-VRCX.txt) |
 | `OpenVR.cs` C# 绑定 | [Valve OpenVR，经 VRCX 仓库发布](https://github.com/vrcx-team/VRCX/blob/master/Dotnet/Overlay/OpenVR/openvr_api.cs) | [Valve BSD 三条款](LICENSE-OpenVR.txt) |
 
-腕部摆放和按键映射参考了 VRCX。叠加层在收到 `ImageLoaded` 后再切换的顺序参考了 [VRCX-0](https://github.com/Map1en/VRCX-0/blob/master/crates/host-desktop/src/vr_overlay/openvr_backend.rs)；项目未复制 VRCX-0 的 GPL 源码。
+腕部摆放、按键映射，以及设备图标的警告和异常[滤镜参数](https://github.com/vrcx-team/VRCX/blob/master/src/vr/vr.css)参考了 VRCX。叠加层在收到 `ImageLoaded` 后再切换的顺序参考了 [VRCX-0](https://github.com/Map1en/VRCX-0/blob/master/crates/host-desktop/src/vr_overlay/openvr_backend.rs)；项目未复制 VRCX-0 的 GPL 源码。

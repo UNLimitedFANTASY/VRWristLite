@@ -139,9 +139,29 @@ namespace WristLite
             Expect(Renderer.DeviceBatteryText(offline) == "72%" &&
                 Renderer.DeviceBatteryText(lost) == "73%" &&
                 Renderer.DeviceBatteryText(normal) == "—", "battery label does not become tracking state");
-            Expect(Renderer.DeviceIconTint(offline).Value.R > 200 &&
-                Renderer.DeviceIconTint(lost).Value.G > 150 &&
-                !Renderer.DeviceIconTint(normal).HasValue, "icon color reflects tracking state");
+            Expect(Renderer.DeviceIconState(offline) == 2 &&
+                Renderer.DeviceIconState(lost) == 1 &&
+                Renderer.DeviceIconState(normal) == 0, "icon color reflects tracking state");
+            using (var source = new Bitmap(1, 3, PixelFormat.Format32bppArgb))
+            {
+                source.SetPixel(0, 0, Color.FromArgb(51, 174, 145));
+                source.SetPixel(0, 1, Color.Transparent);
+                source.SetPixel(0, 2, Color.FromArgb(52, 151, 176));
+                using (var yellow = Renderer.ApplyVrcxStatusFilter(source, 1))
+                using (var red = Renderer.ApplyVrcxStatusFilter(source, 2))
+                {
+                    Color warning = yellow.GetPixel(0, 0);
+                    Color error = red.GetPixel(0, 0);
+                    Expect(warning.R > warning.G && warning.G > warning.B &&
+                        warning.A == 230 &&
+                        yellow.GetPixel(0, 0) != yellow.GetPixel(0, 2) &&
+                        yellow.GetPixel(0, 1).A == 0, "VRCX warning filter keeps artwork detail");
+                    Expect(error.R > error.B && error.B > error.G &&
+                        error.A == 230 &&
+                        red.GetPixel(0, 0) != red.GetPixel(0, 2) &&
+                        red.GetPixel(0, 1).A == 0, "VRCX error filter keeps artwork detail");
+                }
+            }
             foreach (string appearance in new[] { "classic", "vrcx" })
             {
                 Expect(!RenderDevices(appearance, 24).SequenceEqual(RenderDevices(appearance, 25)),
