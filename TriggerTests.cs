@@ -130,6 +130,18 @@ namespace WristLite
                     "second RGBA pixel and alpha");
             }
             Expect(Renderer.MaxDevices == 25, "device capacity");
+            var offline = new DeviceInfo { Kind = "tracker", Battery = 72,
+                Connected = false, Tracked = false };
+            var lost = new DeviceInfo { Kind = "tracker", Battery = 73,
+                Connected = true, Tracked = false };
+            var normal = new DeviceInfo { Kind = "tracker", Battery = -1,
+                Connected = true, Tracked = true };
+            Expect(Renderer.DeviceBatteryText(offline) == "72%" &&
+                Renderer.DeviceBatteryText(lost) == "73%" &&
+                Renderer.DeviceBatteryText(normal) == "—", "battery label does not become tracking state");
+            Expect(Renderer.DeviceIconTint(offline).Value.R > 200 &&
+                Renderer.DeviceIconTint(lost).Value.G > 150 &&
+                !Renderer.DeviceIconTint(normal).HasValue, "icon color reflects tracking state");
             foreach (string appearance in new[] { "classic", "vrcx" })
             {
                 Expect(!RenderDevices(appearance, 24).SequenceEqual(RenderDevices(appearance, 25)),
